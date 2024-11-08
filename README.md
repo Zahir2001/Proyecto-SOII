@@ -1,5 +1,5 @@
 # Simulador de Gestión de Memoria en un Sistema Operativo
-En este repositorio se encuentran el código del simulador de gestión de memoria desarrollado para la clase de **Sistemas Operativos II**.
+En este repositorio se encuentran el código del simulador de gestión de memoria desarrollado por el **Grupo #3** para la clase de **Sistemas Operativos II**.
 El simulador permite la asignación y liberación de procesos en memoria usando dos esquemas: **particionamiento fijo** y **particionamiento dinámico**. 
 
 ## Requisitos
@@ -8,9 +8,9 @@ El simulador permite la asignación y liberación de procesos en memoria usando 
 
 
 ## Ejecución del Simulador en Visual Studio
-1. **Clonar el repositorio** o descárgalo como archivo ZIP y extraer en su computadora.
+1. **Clonar el repositorio** o descargar como archivo ZIP y extraer en la computadora.
 2. Abrir el proyecto en **Visual Studio** seleccionando el archivo `.sln` incluido.
-3. Ejecuta el proyecto presionando **F5** o seleccionando **Iniciar** en Visual Studio.
+3. Ejecutar el proyecto presionando **F5** o seleccionando **Iniciar** en Visual Studio.
 
 ## Descripción de Funcionalidades
 El simulador de memoria implementa la gestión de procesos mediante dos métodos de particionamiento:
