@@ -80,7 +80,7 @@ namespace SimuladorMemoriaConsola
                         Console.WriteLine("Saliendo del simulador...");
                         break;
                     default:
-                        Console.WriteLine("Opcion no valida. Intente nuevamente.");
+                        Console.WriteLine("Opcion no valida. Intenta nuevamente.");
                         break;
                 }
 
