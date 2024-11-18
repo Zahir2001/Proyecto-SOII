@@ -25,5 +25,8 @@ namespace SimuladorMemoria
 
         public abstract bool AsignarMemoria(Proceso proceso);
         public abstract void LiberarMemoria(int idProceso);
+
+        protected List<int> paginasEnMemoria; // Lista de marcos de memoria física ocupados
+
     }
 }

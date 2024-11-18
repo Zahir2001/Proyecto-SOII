@@ -8,11 +8,11 @@ namespace SimuladorMemoria
 {
     public class PaginacionMemoriaVirtual: Memoria
     {
-        private int tamanoPagina;
-        private Queue<int> marcosLibres;
-        private Dictionary<int, List<int>> tablaPaginas;
+        private int tamanoPagina; // Tamaño de cada página
+        private Queue<int> marcosLibres; // Cola de marcos libres
+        private Dictionary<int, List<int>> tablaPaginas; // Tabla de páginas por proceso
         private Queue<int> fifoQueue; // Cola FIFO para las páginas en memoria física
-        private HashSet<int> paginasEnMemoria; // Páginas actualmente en memoria
+        private HashSet<int> paginasEnMemoria; // Páginas actualmente en memoria física
 
         public PaginacionMemoriaVirtual(int tamanioTotal, int tamanoPagina) : base(tamanioTotal)
         {
@@ -29,26 +29,29 @@ namespace SimuladorMemoria
             }
         }
 
+        public int TamanoPagina => tamanoPagina; // Propiedad para obtener el tamaño de página
+        public HashSet<int> PaginasEnMemoria => paginasEnMemoria; // Propiedad para las páginas físicas
+
         public override bool AsignarMemoria(Proceso proceso)
         {
-            int numPaginas = (int)Math.Ceiling((double)proceso.Tamanio / tamanoPagina);
-            tablaPaginas[proceso.Id] = new List<int>();
+            int paginasRequeridas = (int)Math.Ceiling((double)proceso.Tamanio / tamanoPagina);
 
-            for (int i = 0; i < numPaginas; i++)
+            if (paginasRequeridas > marcosLibres.Count)
             {
-                if (marcosLibres.Count > 0)
-                {
-                    int marco = marcosLibres.Dequeue();
-                    tablaPaginas[proceso.Id].Add(marco);
-                    fifoQueue.Enqueue(marco);
-                    paginasEnMemoria.Add(marco);
-                }
-                else
-                {
-                    if (!ReemplazarPagina(proceso.Id, i)) return false;
-                }
+                Console.WriteLine($"Error: No se puede asignar memoria al proceso. Espacio insuficiente para {paginasRequeridas} páginas.");
+                return false;
             }
 
+            // Agregar las páginas requeridas al proceso
+            var paginasAsignadas = new List<int>();
+            for (int i = 0; i < paginasRequeridas; i++)
+            {
+                int marco = marcosLibres.Dequeue(); // Tomar un marco libre
+                paginasEnMemoria.Add(marco);
+                paginasAsignadas.Add(marco);
+            }
+
+            tablaPaginas[proceso.Id] = paginasAsignadas;
             Procesos.Add(proceso);
             return true;
         }
@@ -59,6 +62,13 @@ namespace SimuladorMemoria
 
             int marcoReemplazar = fifoQueue.Dequeue();
             paginasEnMemoria.Remove(marcoReemplazar);
+
+            // Validar que el proceso tiene páginas asignadas
+            if (!tablaPaginas.ContainsKey(idProceso) || paginaIndex >= tablaPaginas[idProceso].Count)
+            {
+                Console.WriteLine($"Error: El índice de la página ({paginaIndex}) no es válido para el proceso {idProceso}.");
+                return false;
+            }
 
             tablaPaginas[idProceso][paginaIndex] = marcoReemplazar;
             fifoQueue.Enqueue(marcoReemplazar);

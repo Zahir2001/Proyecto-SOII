@@ -1,5 +1,6 @@
 ﻿using SimuladorMemoria;
 using System;
+using System.Diagnostics;
 using System.Linq;
 
 namespace SimuladorMemoriaConsola
@@ -21,7 +22,12 @@ namespace SimuladorMemoriaConsola
             Console.Write("Ingrese el tamanio total de la memoria: ");
             int tamanioTotalMemoria = int.Parse(Console.ReadLine());
 
-            Console.Write("Seleccione el esquema de particionamiento (1 = Fijo, 2 = Dinamico): ");
+            Console.WriteLine("Seleccione el esquema de particionamiento:");
+            Console.WriteLine("1. Particionamiento Fijo");
+            Console.WriteLine("2. Particionamiento Dinamico");
+            Console.WriteLine("3. Paginacion");
+            Console.WriteLine("4. Segmentacion");
+            Console.Write("Ingrese su opcion: ");
             int tipoParticionamiento = int.Parse(Console.ReadLine());
 
             if (tipoParticionamiento == 1)
@@ -40,6 +46,16 @@ namespace SimuladorMemoriaConsola
             else if (tipoParticionamiento == 2)
             {
                 memoria = new ParticionamientoDinamico(tamanioTotalMemoria);
+            }
+            else if (tipoParticionamiento == 3)
+            {
+                Console.Write("Ingrese el tamanio de cada pagina: ");
+                int tamanioPagina = int.Parse(Console.ReadLine());
+                memoria = new PaginacionMemoriaVirtual(tamanioTotalMemoria, tamanioPagina);
+            }
+            else if (tipoParticionamiento == 4)
+            {
+                memoria = new Segmentacion(tamanioTotalMemoria);
             }
             else
             {
@@ -142,53 +158,138 @@ namespace SimuladorMemoriaConsola
             Console.WriteLine("========== Estado de la Memoria ==========");
 
             int totalSize = memoria.TamanioTotal;
-            int usedSize = memoria.Procesos.Sum(p => p.Tamanio);
-            int freeSize = totalSize - usedSize;
+            int usedSize = 0;
 
-            Console.WriteLine("Memoria Física:");
-            Console.Write("[");
-
-            int blockCount = 50; // Número de bloques en la representación visual de la memoria
-            int usedBlocks = (int)((double)usedSize / totalSize * blockCount);
-            int freeBlocks = blockCount - usedBlocks;
-
-            Console.Write(new string('█', usedBlocks)); // Bloques ocupados en memoria física
-            Console.Write(new string('░', freeBlocks)); // Bloques libres en memoria física
-
-            Console.WriteLine("]");
-
-            // Visualización de procesos y memoria virtual
-            Console.WriteLine("\nProcesos en memoria:");
-            if (memoria.Procesos.Count == 0)
+            // Si la memoria es de segmentación, mostrar segmentos asignados
+            if (memoria is Segmentacion segmentacion)
             {
-                Console.WriteLine("No hay procesos en memoria.");
-            }
-            else
-            {
-                foreach (var proceso in memoria.Procesos)
+                Console.WriteLine("Segmentos asignados:");
+                foreach (var segmento in segmentacion.ObtenerSegmentosPorProceso())
                 {
-                    Console.WriteLine($"Proceso {proceso.Id} - Tamaño: {proceso.Tamanio}");
+                    Console.WriteLine($"Proceso {segmento.idProceso}: Inicio {segmento.inicio}, Tamaño {segmento.tamanio}");
+                }
 
-                    // Visualizar páginas o segmentos según el tipo de memoria
-                    if (memoria is PaginacionMemoriaVirtual paginacion)
+                // Mostrar espacios libres
+                Console.WriteLine("\nEspacios libres:");
+                int espacioLibre = 0;
+                foreach (var segmento in segmentacion.ObtenerSegmentosPorProceso().OrderBy(s => s.inicio))
+                {
+                    if (segmento.inicio > espacioLibre)
                     {
-                        var paginas = paginacion.ObtenerTablaPaginas(proceso.Id);
-                        foreach (var pagina in paginas)
-                        {
-                            Console.WriteLine($"  Página {pagina} - {(paginacion.EstaEnMemoriaFisica(pagina) ? "En memoria física" : "En memoria virtual")}");
-                        }
+                        Console.WriteLine($"Inicio: {espacioLibre}, Tamaño libre: {segmento.inicio - espacioLibre}");
                     }
-                    else if (memoria is Segmentacion segmentacion)
+                    espacioLibre = segmento.inicio + segmento.tamanio;
+                }
+
+                if (totalSize > espacioLibre)
+                {
+                    Console.WriteLine($"Inicio: {espacioLibre}, Tamaño libre: {totalSize - espacioLibre}");
+                }
+
+                usedSize = segmentacion.ObtenerSegmentosPorProceso().Sum(s => s.tamanio);
+            }
+            else if (memoria is PaginacionMemoriaVirtual paginacion) // Manejo de paginación
+            {
+                usedSize = paginacion.PaginasEnMemoria.Count * paginacion.TamanoPagina;
+
+                Console.WriteLine("Procesos en memoria:");
+                if (memoria.Procesos.Count == 0)
+                {
+                    Console.WriteLine("No hay procesos en memoria.");
+                }
+                else
+                {
+                    foreach (var proceso in memoria.Procesos)
                     {
-                        var segmentos = segmentacion.ObtenerSegmentos(proceso.Id);
-                        foreach (var segmento in segmentos)
+                        Console.WriteLine($"Proceso {proceso.Id} - Tamaño: {proceso.Tamanio}");
+                        var paginas = paginacion.ObtenerTablaPaginas(proceso.Id);
+                        if (paginas == null || paginas.Count == 0)
                         {
-                            Console.WriteLine($"  Segmento en posición {segmento.inicio} de tamaño {segmento.tamanio}");
+                            Console.WriteLine($" Proceso {proceso.Id} - No tiene páginas asignadas.");
+                            continue;
+                        }
+
+                        for (int i = 0; i < paginas.Count; i++)
+                        {
+                            string estado = paginacion.EstaEnMemoriaFisica(paginas[i]) ? "En memoria física" : "En memoria virtual";
+                            Console.WriteLine($" Página {i} - {estado}");
                         }
                     }
                 }
             }
-            Console.WriteLine($"\nFragmentación: {freeSize} KB libres en memoria física.");
+            else // Caso general (fijo/dinámico)
+            {
+                usedSize = memoria.Procesos.Sum(p => p.Tamanio);
+                Console.WriteLine("Procesos en memoria:");
+                if (memoria.Procesos.Count == 0)
+                {
+                    Console.WriteLine("No hay procesos en memoria.");
+                }
+                else
+                {
+                    foreach (var proceso in memoria.Procesos)
+                    {
+                        Console.WriteLine($"Proceso {proceso.Id} - Tamaño: {proceso.Tamanio}");
+                    }
+                }
+            }
+
+            int freeSize = totalSize - usedSize;
+
+            // Validar que usedSize no exceda totalSize
+            if (usedSize > totalSize)
+            {
+                Console.WriteLine("Error: La memoria usada excede la memoria total. Verifique el cálculo de asignaciones.");
+                return;
+            }
+
+            // Visualizar barra de memoria física
+            Console.WriteLine("\nMemoria Física:");
+            Console.Write("[");
+            int blockCount = 50; // Número de bloques visuales
+            int[] memoriaVisual = new int[blockCount]; // 0 = libre, 1 = ocupado
+
+            if (memoria is Segmentacion segmentacionMemoria)
+            {
+                foreach (var segmento in segmentacionMemoria.ObtenerSegmentosPorProceso())
+                {
+                    int inicioBloque = segmento.inicio * blockCount / totalSize;
+                    int finBloque = (segmento.inicio + segmento.tamanio) * blockCount / totalSize;
+
+                    for (int i = inicioBloque; i < finBloque && i < blockCount; i++)
+                    {
+                        memoriaVisual[i] = 1; // Marcar como ocupado
+                    }
+                }
+            }
+            else if (memoria is PaginacionMemoriaVirtual paginacionMemoria)
+            {
+                foreach (var marco in paginacionMemoria.PaginasEnMemoria)
+                {
+                    int bloque = marco * blockCount / totalSize;
+                    if (bloque < blockCount)
+                    {
+                        memoriaVisual[bloque] = 1; // Marcar como ocupado
+                    }
+                }
+            }
+            else
+            {
+                int ocupados = (int)((double)usedSize / totalSize * blockCount);
+                for (int i = 0; i < ocupados; i++)
+                {
+                    memoriaVisual[i] = 1; // Marcar bloques ocupados
+                }
+            }
+
+            foreach (var bloque in memoriaVisual)
+            {
+                Console.Write(bloque == 1 ? '█' : '░');
+            }
+
+            Console.WriteLine("]");
+
+            Console.WriteLine($"\nFragmentación externa: {freeSize} libres en memoria física.");
         }
     }
 }
