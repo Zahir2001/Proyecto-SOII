@@ -81,5 +81,16 @@ namespace SimuladorMemoria
                 Procesos.RemoveAll(p => p.Id == idProceso);
             }
         }
+
+        public List<int> ObtenerTablaPaginas(int idProceso)
+        {
+            return tablaPaginas.ContainsKey(idProceso) ? tablaPaginas[idProceso] : new List<int>();
+        }
+
+        public bool EstaEnMemoriaFisica(int pagina)
+        {
+            return paginasEnMemoria.Contains(pagina);
+        }
+
     }
 }

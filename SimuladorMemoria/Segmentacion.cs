@@ -47,5 +47,13 @@ namespace SimuladorMemoria
             segmentos.RemoveAll(s => s.idProceso == idProceso);
             Procesos.RemoveAll(p => p.Id == idProceso);
         }
+
+        public List<(int inicio, int tamanio)> ObtenerSegmentos(int idProceso)
+        {
+            return segmentos.Where(s => s.idProceso == idProceso)
+                            .Select(s => (s.inicio, s.tamanio))
+                            .ToList();
+        }
+
     }
 }

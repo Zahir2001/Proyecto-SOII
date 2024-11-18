@@ -141,23 +141,23 @@ namespace SimuladorMemoriaConsola
             Console.Clear();
             Console.WriteLine("========== Estado de la Memoria ==========");
 
-            // Forma visual de la memoria
             int totalSize = memoria.TamanioTotal;
             int usedSize = memoria.Procesos.Sum(p => p.Tamanio);
             int freeSize = totalSize - usedSize;
 
-            Console.WriteLine("Memoria: ");
+            Console.WriteLine("Memoria Física:");
             Console.Write("[");
 
-            int blockCount = 50; // Representa el numero de bloques en la memoria
+            int blockCount = 50; // Número de bloques en la representación visual de la memoria
             int usedBlocks = (int)((double)usedSize / totalSize * blockCount);
             int freeBlocks = blockCount - usedBlocks;
 
-            Console.Write(new string('█', usedBlocks)); // Bloques que estan ocupados
-            Console.Write(new string('░', freeBlocks)); // Bloques que estan libres libres
+            Console.Write(new string('█', usedBlocks)); // Bloques ocupados en memoria física
+            Console.Write(new string('░', freeBlocks)); // Bloques libres en memoria física
 
             Console.WriteLine("]");
 
+            // Visualización de procesos y memoria virtual
             Console.WriteLine("\nProcesos en memoria:");
             if (memoria.Procesos.Count == 0)
             {
@@ -167,9 +167,28 @@ namespace SimuladorMemoriaConsola
             {
                 foreach (var proceso in memoria.Procesos)
                 {
-                    Console.WriteLine($"Proceso {proceso.Id} - Tamanio: {proceso.Tamanio}");
+                    Console.WriteLine($"Proceso {proceso.Id} - Tamaño: {proceso.Tamanio}");
+
+                    // Visualizar páginas o segmentos según el tipo de memoria
+                    if (memoria is PaginacionMemoriaVirtual paginacion)
+                    {
+                        var paginas = paginacion.ObtenerTablaPaginas(proceso.Id);
+                        foreach (var pagina in paginas)
+                        {
+                            Console.WriteLine($"  Página {pagina} - {(paginacion.EstaEnMemoriaFisica(pagina) ? "En memoria física" : "En memoria virtual")}");
+                        }
+                    }
+                    else if (memoria is Segmentacion segmentacion)
+                    {
+                        var segmentos = segmentacion.ObtenerSegmentos(proceso.Id);
+                        foreach (var segmento in segmentos)
+                        {
+                            Console.WriteLine($"  Segmento en posición {segmento.inicio} de tamaño {segmento.tamanio}");
+                        }
+                    }
                 }
             }
+            Console.WriteLine($"\nFragmentación: {freeSize} KB libres en memoria física.");
         }
     }
 }
