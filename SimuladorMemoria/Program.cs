@@ -18,49 +18,67 @@ namespace SimuladorMemoriaConsola
         private static void ConfigurarMemoria()
         {
             Console.Clear();
-            Console.WriteLine("========== Configuracion de Memoria ==========");
-            Console.Write("Ingrese el tamanio total de la memoria: ");
+            Console.WriteLine("========== Configuración de Memoria ==========");
+            Console.Write("Ingrese el tamaño total de la memoria: ");
             int tamanioTotalMemoria = int.Parse(Console.ReadLine());
 
             Console.WriteLine("Seleccione el esquema de particionamiento:");
-            Console.WriteLine("1. Particionamiento Fijo");
-            Console.WriteLine("2. Particionamiento Dinamico");
-            Console.WriteLine("3. Paginacion");
-            Console.WriteLine("4. Segmentacion");
-            Console.Write("Ingrese su opcion: ");
+            Console.WriteLine("1. Fijo");
+            Console.WriteLine("2. Dinámico");
+            Console.WriteLine("3. Paginación");
+            Console.WriteLine("4. Segmentación");
             int tipoParticionamiento = int.Parse(Console.ReadLine());
 
-            if (tipoParticionamiento == 1)
+            switch (tipoParticionamiento)
             {
-                Console.Write("Ingrese el tamanio de cada particion: ");
-                int tamanioParticion = int.Parse(Console.ReadLine());
+                case 1:
+                    Console.Write("Ingrese el tamaño de cada partición: ");
+                    int tamanioParticion = int.Parse(Console.ReadLine());
 
-                if (tamanioTotalMemoria % tamanioParticion != 0)
-                {
-                    Console.WriteLine("Error: El tamanio total de la memoria debe ser multiplo del tamanio de la particion.");
+                    if (tamanioTotalMemoria % tamanioParticion != 0)
+                    {
+                        Console.WriteLine("Error: El tamaño total de la memoria debe ser múltiplo del tamaño de la partición.");
+                        return;
+                    }
+
+                    memoria = new ParticionamientoFijo(tamanioTotalMemoria, tamanioParticion);
+                    break;
+                case 2:
+                    memoria = new ParticionamientoDinamico(tamanioTotalMemoria);
+                    break;
+                case 3:
+                    Console.Write("Ingrese el tamaño de la página: ");
+                    int tamanoPagina = int.Parse(Console.ReadLine());
+                    Console.Write("Ingrese el tamaño total de la memoria virtual: ");
+                    int tamanoMemoriaVirtual = int.Parse(Console.ReadLine());
+
+                    if (tamanoMemoriaVirtual % tamanoPagina != 0)
+                    {
+                        Console.WriteLine("Error: El tamaño de la memoria virtual debe ser múltiplo del tamaño de la página.");
+                        return;
+                    }
+
+                    Console.WriteLine("Seleccione el algoritmo de reemplazo de páginas:");
+                    Console.WriteLine("1. FIFO");
+                    Console.WriteLine("2. LRU");
+                    Console.WriteLine("3. Reloj");
+                    int algoritmoSeleccionado = int.Parse(Console.ReadLine());
+                    string algoritmo = algoritmoSeleccionado switch
+                    {
+                        1 => "FIFO",
+                        2 => "LRU",
+                        3 => "Reloj",
+                        _ => throw new ArgumentException("Opción inválida.")
+                    };
+
+                    memoria = new PaginacionMemoriaVirtual(tamanioTotalMemoria, tamanoPagina, tamanoMemoriaVirtual, algoritmo);
+                    break;
+                case 4:
+                    memoria = new Segmentacion(tamanioTotalMemoria);
+                    break;
+                default:
+                    Console.WriteLine("Opción no válida.");
                     return;
-                }
-
-                memoria = new ParticionamientoFijo(tamanioTotalMemoria, tamanioParticion);
-            }
-            else if (tipoParticionamiento == 2)
-            {
-                memoria = new ParticionamientoDinamico(tamanioTotalMemoria);
-            }
-            else if (tipoParticionamiento == 3)
-            {
-                Console.Write("Ingrese el tamanio de cada pagina: ");
-                int tamanioPagina = int.Parse(Console.ReadLine());
-                memoria = new PaginacionMemoriaVirtual(tamanioTotalMemoria, tamanioPagina);
-            }
-            else if (tipoParticionamiento == 4)
-            {
-                memoria = new Segmentacion(tamanioTotalMemoria);
-            }
-            else
-            {
-                Console.WriteLine("Opcion no valida.");
-                return;
             }
 
             Console.WriteLine("Memoria configurada exitosamente.");
@@ -73,40 +91,44 @@ namespace SimuladorMemoriaConsola
             {
                 Console.Clear();
                 Console.WriteLine("========== Simulador de Memoria ==========");
-                Console.WriteLine("1. Agregar Proceso");
-                Console.WriteLine("2. Liberar Proceso");
-                Console.WriteLine("3. Ver Estado de la Memoria");
-                Console.WriteLine("4. Salir");
+                Console.WriteLine("1. Configurar Memoria (Fijo, Dinámico, Paginación, Segmentación)");
+                Console.WriteLine("2. Agregar Proceso");
+                Console.WriteLine("3. Liberar Proceso");
+                Console.WriteLine("4. Ver Estado de la Memoria");
+                Console.WriteLine("5. Salir");
                 Console.WriteLine("===========================================");
-                Console.Write("Seleccione una opcion: ");
+                Console.Write("Seleccione una opción: ");
                 opcion = int.Parse(Console.ReadLine());
 
                 switch (opcion)
                 {
                     case 1:
-                        AgregarProceso();
+                        ConfigurarMemoria();
                         break;
                     case 2:
-                        LiberarProceso();
+                        AgregarProceso();
                         break;
                     case 3:
-                        VerEstadoMemoriaVisual();
+                        LiberarProceso();
                         break;
                     case 4:
+                        VerEstadoMemoriaVisual();
+                        break;
+                    case 5:
                         Console.WriteLine("Saliendo del simulador...");
                         break;
                     default:
-                        Console.WriteLine("Opcion no valida. Intenta nuevamente.");
+                        Console.WriteLine("Opción no válida. Intente nuevamente.");
                         break;
                 }
 
-                if (opcion != 4)
+                if (opcion != 5)
                 {
-                    Console.WriteLine("\nPresione cualquier tecla para volver al menu...");
+                    Console.WriteLine("\nPresione cualquier tecla para volver al menú...");
                     Console.ReadKey();
                 }
 
-            } while (opcion != 4);
+            } while (opcion != 5);
         }
 
         private static void AgregarProceso()
@@ -157,139 +179,112 @@ namespace SimuladorMemoriaConsola
             Console.Clear();
             Console.WriteLine("========== Estado de la Memoria ==========");
 
+            // Identificar el tipo de memoria
+            if (memoria is ParticionamientoFijo || memoria is ParticionamientoDinamico)
+            {
+                MostrarEstadoParticionamiento(); // Método para particionamiento fijo/dinámico
+            }
+            else if (memoria is PaginacionMemoriaVirtual paginacion)
+            {
+                paginacion.MostrarEstadoMemoria();
+            }
+            else if (memoria is Segmentacion segmentacion)
+            {
+                MostrarEstadoSegmentacion(segmentacion); // Método para segmentación
+            }
+            else
+            {
+                Console.WriteLine("Error: Tipo de memoria desconocido.");
+            }
+
+            Console.WriteLine("\nPresione cualquier tecla para volver al menú...");
+            Console.ReadKey();
+        }
+
+        private static void MostrarEstadoParticionamiento()
+        {
+            Console.WriteLine($"Memoria Física Total: {memoria.TamanioTotal}");
+            Console.WriteLine($"Memoria Física Usada: {memoria.Procesos.Sum(p => p.Tamanio)}");
+            Console.WriteLine($"Memoria Física Libre: {Math.Max(memoria.TamanioTotal - memoria.Procesos.Sum(p => p.Tamanio), 0)}");
+            Console.WriteLine("\nProcesos en memoria:");
+
+            if (memoria.Procesos.Count == 0)
+            {
+                Console.WriteLine("No hay procesos en memoria.");
+            }
+            else
+            {
+                foreach (var proceso in memoria.Procesos)
+                {
+                    Console.WriteLine($"Proceso {proceso.Id} - Tamaño: {proceso.Tamanio}");
+                }
+            }
+
+            // Representación visual
+            Console.Write("\nMemoria Física: [");
             int totalSize = memoria.TamanioTotal;
-            int usedSize = 0;
+            int blockCount = 50;
+            int usedBlocks = (int)((double)memoria.Procesos.Sum(p => p.Tamanio) / totalSize * blockCount);
+            Console.Write(new string('█', usedBlocks));
+            Console.Write(new string('░', blockCount - usedBlocks));
+            Console.WriteLine("]");
+        }
+        private static void MostrarEstadoSegmentacion(Segmentacion segmentacion)
+        {
+            Console.WriteLine($"Tamaño Total: {segmentacion.TamanioTotal}");
 
-            // Si la memoria es de segmentación, mostrar segmentos asignados
-            if (memoria is Segmentacion segmentacion)
+            // Mostrar segmentos ocupados
+            if (segmentacion.Procesos.Count == 0)
             {
-                Console.WriteLine("Segmentos asignados:");
-                foreach (var segmento in segmentacion.ObtenerSegmentosPorProceso())
-                {
-                    Console.WriteLine($"Proceso {segmento.idProceso}: Inicio {segmento.inicio}, Tamaño {segmento.tamanio}");
-                }
-
-                // Mostrar espacios libres
-                Console.WriteLine("\nEspacios libres:");
-                int espacioLibre = 0;
-                foreach (var segmento in segmentacion.ObtenerSegmentosPorProceso().OrderBy(s => s.inicio))
-                {
-                    if (segmento.inicio > espacioLibre)
-                    {
-                        Console.WriteLine($"Inicio: {espacioLibre}, Tamaño libre: {segmento.inicio - espacioLibre}");
-                    }
-                    espacioLibre = segmento.inicio + segmento.tamanio;
-                }
-
-                if (totalSize > espacioLibre)
-                {
-                    Console.WriteLine($"Inicio: {espacioLibre}, Tamaño libre: {totalSize - espacioLibre}");
-                }
-
-                usedSize = segmentacion.ObtenerSegmentosPorProceso().Sum(s => s.tamanio);
+                Console.WriteLine("No hay segmentos asignados.");
             }
-            else if (memoria is PaginacionMemoriaVirtual paginacion) // Manejo de paginación
+            else
             {
-                usedSize = paginacion.PaginasEnMemoria.Count * paginacion.TamanoPagina;
-
-                Console.WriteLine("Procesos en memoria:");
-                if (memoria.Procesos.Count == 0)
+                Console.WriteLine("Segmentos ocupados:");
+                foreach (var segmento in segmentacion.ObtenerSegmentos())
                 {
-                    Console.WriteLine("No hay procesos en memoria.");
-                }
-                else
-                {
-                    foreach (var proceso in memoria.Procesos)
-                    {
-                        Console.WriteLine($"Proceso {proceso.Id} - Tamaño: {proceso.Tamanio}");
-                        var paginas = paginacion.ObtenerTablaPaginas(proceso.Id);
-                        if (paginas == null || paginas.Count == 0)
-                        {
-                            Console.WriteLine($" Proceso {proceso.Id} - No tiene páginas asignadas.");
-                            continue;
-                        }
-
-                        for (int i = 0; i < paginas.Count; i++)
-                        {
-                            string estado = paginacion.EstaEnMemoriaFisica(paginas[i]) ? "En memoria física" : "En memoria virtual";
-                            Console.WriteLine($" Página {i} - {estado}");
-                        }
-                    }
-                }
-            }
-            else // Caso general (fijo/dinámico)
-            {
-                usedSize = memoria.Procesos.Sum(p => p.Tamanio);
-                Console.WriteLine("Procesos en memoria:");
-                if (memoria.Procesos.Count == 0)
-                {
-                    Console.WriteLine("No hay procesos en memoria.");
-                }
-                else
-                {
-                    foreach (var proceso in memoria.Procesos)
-                    {
-                        Console.WriteLine($"Proceso {proceso.Id} - Tamaño: {proceso.Tamanio}");
-                    }
+                    Console.WriteLine($"- Proceso {segmento.idProceso}: Inicio {segmento.inicio}, Tamaño {segmento.tamanio}");
                 }
             }
 
-            int freeSize = totalSize - usedSize;
-
-            // Validar que usedSize no exceda totalSize
-            if (usedSize > totalSize)
+            // Mostrar espacios libres
+            var espaciosLibres = segmentacion.ObtenerEspaciosLibres();
+            if (espaciosLibres.Count > 0)
             {
-                Console.WriteLine("Error: La memoria usada excede la memoria total. Verifique el cálculo de asignaciones.");
-                return;
-            }
-
-            // Visualizar barra de memoria física
-            Console.WriteLine("\nMemoria Física:");
-            Console.Write("[");
-            int blockCount = 50; // Número de bloques visuales
-            int[] memoriaVisual = new int[blockCount]; // 0 = libre, 1 = ocupado
-
-            if (memoria is Segmentacion segmentacionMemoria)
-            {
-                foreach (var segmento in segmentacionMemoria.ObtenerSegmentosPorProceso())
+                Console.WriteLine("\nFragmentación externa (segmentos libres):");
+                foreach (var espacio in espaciosLibres)
                 {
-                    int inicioBloque = segmento.inicio * blockCount / totalSize;
-                    int finBloque = (segmento.inicio + segmento.tamanio) * blockCount / totalSize;
-
-                    for (int i = inicioBloque; i < finBloque && i < blockCount; i++)
-                    {
-                        memoriaVisual[i] = 1; // Marcar como ocupado
-                    }
-                }
-            }
-            else if (memoria is PaginacionMemoriaVirtual paginacionMemoria)
-            {
-                foreach (var marco in paginacionMemoria.PaginasEnMemoria)
-                {
-                    int bloque = marco * blockCount / totalSize;
-                    if (bloque < blockCount)
-                    {
-                        memoriaVisual[bloque] = 1; // Marcar como ocupado
-                    }
+                    Console.WriteLine($"Espacio libre desde posición {espacio.inicio} con tamaño {espacio.tamanio}");
                 }
             }
             else
             {
-                int ocupados = (int)((double)usedSize / totalSize * blockCount);
-                for (int i = 0; i < ocupados; i++)
-                {
-                    memoriaVisual[i] = 1; // Marcar bloques ocupados
-                }
+                Console.WriteLine("\nNo hay fragmentación externa.");
             }
 
-            foreach (var bloque in memoriaVisual)
+            // Representación visual
+            Console.Write("\nMemoria Física: [");
+            int posicionActual = 0;
+
+            foreach (var segmento in segmentacion.ObtenerSegmentos().OrderBy(s => s.inicio))
             {
-                Console.Write(bloque == 1 ? '█' : '░');
+                if (posicionActual < segmento.inicio)
+                {
+                    int hueco = segmento.inicio - posicionActual;
+                    Console.Write(new string('░', Math.Min(hueco / 10, 50)));
+                }
+
+                Console.Write(new string('█', Math.Min(segmento.tamanio / 10, 50)));
+                posicionActual = segmento.inicio + segmento.tamanio;
             }
 
+            if (posicionActual < segmentacion.TamanioTotal)
+            {
+                int huecoFinal = segmentacion.TamanioTotal - posicionActual;
+                Console.Write(new string('░', Math.Min(huecoFinal / 10, 50)));
+            }
             Console.WriteLine("]");
-
-            Console.WriteLine($"\nFragmentación externa: {freeSize} libres en memoria física.");
         }
+
     }
 }

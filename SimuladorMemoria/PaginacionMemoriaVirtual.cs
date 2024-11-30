@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -8,99 +9,201 @@ namespace SimuladorMemoria
 {
     public class PaginacionMemoriaVirtual: Memoria
     {
-        private int tamanoPagina; // Tamaño de cada página
-        private Queue<int> marcosLibres; // Cola de marcos libres
-        private Dictionary<int, List<int>> tablaPaginas; // Tabla de páginas por proceso
-        private Queue<int> fifoQueue; // Cola FIFO para las páginas en memoria física
-        private HashSet<int> paginasEnMemoria; // Páginas actualmente en memoria física
+        private int tamanoPagina;
+        private Queue<int> marcosLibres;
+        private Queue<int> marcosVirtuales;
+        private Dictionary<int, List<int>> tablaPaginas;
+        private Queue<int> fifoQueue;
+        private Dictionary<int, int> ubicacionPaginas;
+        private string algoritmoReemplazo;
 
-        public PaginacionMemoriaVirtual(int tamanioTotal, int tamanoPagina) : base(tamanioTotal)
+
+
+        public PaginacionMemoriaVirtual(int tamanioTotal, int tamanoPagina, int tamanioVirtual, string algoritmo) : base(tamanioTotal)
         {
             this.tamanoPagina = tamanoPagina;
+            algoritmoReemplazo = algoritmo;
+
             marcosLibres = new Queue<int>();
+            marcosVirtuales = new Queue<int>();
             tablaPaginas = new Dictionary<int, List<int>>();
             fifoQueue = new Queue<int>();
-            paginasEnMemoria = new HashSet<int>();
+            ubicacionPaginas = new Dictionary<int, int>();
+            paginasEnMemoria = new List<int>();
 
-            int numMarcos = tamanioTotal / tamanoPagina;
-            for (int i = 0; i < numMarcos; i++)
+            int numMarcosFisicos = tamanioTotal / tamanoPagina;
+            for (int i = 0; i < numMarcosFisicos; i++)
             {
                 marcosLibres.Enqueue(i);
             }
-        }
 
-        public int TamanoPagina => tamanoPagina; // Propiedad para obtener el tamaño de página
-        public HashSet<int> PaginasEnMemoria => paginasEnMemoria; // Propiedad para las páginas físicas
+            int numMarcosVirtuales = tamanioVirtual / tamanoPagina;
+            for (int i = numMarcosFisicos; i < numMarcosFisicos + numMarcosVirtuales; i++)
+            {
+                marcosVirtuales.Enqueue(i);
+            }
+        }
 
         public override bool AsignarMemoria(Proceso proceso)
         {
-            int paginasRequeridas = (int)Math.Ceiling((double)proceso.Tamanio / tamanoPagina);
+            int paginasNecesarias = (int)Math.Ceiling((double)proceso.Tamanio / tamanoPagina);
 
-            if (paginasRequeridas > marcosLibres.Count)
+            int totalMarcosDisponibles = marcosLibres.Count + marcosVirtuales.Count;
+            if (paginasNecesarias > totalMarcosDisponibles)
             {
-                Console.WriteLine($"Error: No se puede asignar memoria al proceso. Espacio insuficiente para {paginasRequeridas} páginas.");
+                Console.WriteLine($"Error: No hay suficiente espacio en memoria física y virtual para el proceso {proceso.Id}.");
                 return false;
             }
 
-            // Agregar las páginas requeridas al proceso
-            var paginasAsignadas = new List<int>();
-            for (int i = 0; i < paginasRequeridas; i++)
+            int memoriaUsadaTotal = Procesos.Sum(p => p.Tamanio) + proceso.Tamanio;
+            int memoriaDisponibleTotal = TamanioTotal + marcosVirtuales.Count * tamanoPagina;
+
+            if (memoriaUsadaTotal > memoriaDisponibleTotal)
             {
-                int marco = marcosLibres.Dequeue(); // Tomar un marco libre
-                paginasEnMemoria.Add(marco);
-                paginasAsignadas.Add(marco);
+                Console.WriteLine($"Error: El proceso {proceso.Id} excede la capacidad total de la memoria.");
+                return false;
             }
 
-            tablaPaginas[proceso.Id] = paginasAsignadas;
+            if (!tablaPaginas.ContainsKey(proceso.Id))
+            {
+                tablaPaginas[proceso.Id] = new List<int>();
+            }
+
+            // Asigna paginas al proceso
+            for (int i = 0; i < paginasNecesarias; i++)
+            {
+                if (marcosLibres.Count > 0)
+                {
+                    // Asignar un marco fisico libre
+                    int marco = marcosLibres.Dequeue();
+                    tablaPaginas[proceso.Id].Add(marco);
+                    fifoQueue.Enqueue(marco);
+                    paginasEnMemoria.Add(marco);
+                }
+                else
+                {
+                    // Manejo de fallos de pagina si no hay marcos libres
+                    if (!ManejarFalloDePagina(proceso.Id, i))
+                    {
+                        Console.WriteLine($"Error: No se pudo asignar la página {i} del proceso {proceso.Id}.");
+                        return false;
+                    }
+                }
+            }
+
             Procesos.Add(proceso);
             return true;
         }
 
-        private bool ReemplazarPagina(int idProceso, int paginaIndex)
+        private bool ManejarFalloDePagina(int idProceso, int paginaIndex)
         {
-            if (fifoQueue.Count == 0) return false;
-
-            int marcoReemplazar = fifoQueue.Dequeue();
-            paginasEnMemoria.Remove(marcoReemplazar);
-
-            // Validar que el proceso tiene páginas asignadas
-            if (!tablaPaginas.ContainsKey(idProceso) || paginaIndex >= tablaPaginas[idProceso].Count)
+            if (fifoQueue.Count == 0)
             {
-                Console.WriteLine($"Error: El índice de la página ({paginaIndex}) no es válido para el proceso {idProceso}.");
+                Console.WriteLine("Error: No hay marcos en memoria física para reemplazar.");
                 return false;
             }
 
-            tablaPaginas[idProceso][paginaIndex] = marcoReemplazar;
+            int marcoReemplazar = fifoQueue.Dequeue();
+
+            paginasEnMemoria.Remove(marcoReemplazar);
+            marcosVirtuales.Enqueue(marcoReemplazar);
+
+            if (ubicacionPaginas.TryGetValue(marcoReemplazar, out int procesoAnterior))
+            {
+                if (tablaPaginas.ContainsKey(procesoAnterior))
+                {
+                    tablaPaginas[procesoAnterior].Remove(marcoReemplazar);
+                }
+            }
+
+            // Asignar el marco al nuevo proceso
             fifoQueue.Enqueue(marcoReemplazar);
-            paginasEnMemoria.Add(marcoReemplazar);
+            ubicacionPaginas[marcoReemplazar] = idProceso;
+            tablaPaginas[idProceso].Add(marcoReemplazar);
 
             return true;
         }
 
         public override void LiberarMemoria(int idProceso)
         {
-            if (tablaPaginas.ContainsKey(idProceso))
+            if (!tablaPaginas.ContainsKey(idProceso))
             {
-                foreach (int marco in tablaPaginas[idProceso])
+                Console.WriteLine($"Error: El proceso {idProceso} no existe.");
+                return;
+            }
+
+            foreach (int marco in tablaPaginas[idProceso])
+            {
+                if (paginasEnMemoria.Contains(marco))
                 {
                     paginasEnMemoria.Remove(marco);
-                    fifoQueue = new Queue<int>(fifoQueue.Where(m => m != marco));
                     marcosLibres.Enqueue(marco);
                 }
-                tablaPaginas.Remove(idProceso);
-                Procesos.RemoveAll(p => p.Id == idProceso);
+                else
+                {
+                    marcosVirtuales.Enqueue(marco);
+                }
+                ubicacionPaginas.Remove(marco);
             }
+
+            tablaPaginas.Remove(idProceso);
+            Procesos.RemoveAll(p => p.Id == idProceso);
         }
+
+        public void MostrarEstadoMemoria()
+        {
+            Console.WriteLine($"Memoria Física Total: {TamanioTotal}");
+            Console.WriteLine($"Memoria Física Usada: {paginasEnMemoria.Count * tamanoPagina}");
+            Console.WriteLine($"Memoria Física Libre: {marcosLibres.Count * tamanoPagina}");
+            int totalVirtualSize = marcosVirtuales.Count * tamanoPagina + paginasEnMemoria.Count * tamanoPagina;
+            int virtualUsedMemory = tablaPaginas.Values.Sum(lista => lista.Count(pagina => !paginasEnMemoria.Contains(pagina))) * tamanoPagina;
+            Console.WriteLine($"Memoria Virtual Libre: {totalVirtualSize - virtualUsedMemory}");
+
+            Console.WriteLine("\nProcesos en memoria:");
+            if (Procesos.Count == 0)
+            {
+                Console.WriteLine("No hay procesos en memoria.");
+            }
+            else
+            {
+                foreach (var proceso in Procesos)
+                {
+                    Console.WriteLine($"Proceso {proceso.Id} - Tamaño: {proceso.Tamanio}");
+                    var paginas = ObtenerTablaPaginas(proceso.Id);
+                    for (int i = 0; i < paginas.Count; i++)
+                    {
+                        string ubicacion = paginasEnMemoria.Contains(paginas[i]) ? "Memoria Física" : "Memoria Virtual";
+                        Console.WriteLine($"  Página {i} - Marco {paginas[i]} ({ubicacion})");
+                    }
+                }
+            }
+
+            // === Agrega puntos de depuración ===
+            Console.WriteLine("\nDepuración:");
+            Console.WriteLine($"Páginas en memoria física: {string.Join(", ", paginasEnMemoria)}");
+            Console.WriteLine($"Marcos libres: {string.Join(", ", marcosLibres)}");
+            Console.WriteLine($"Marcos virtuales: {string.Join(", ", marcosVirtuales)}");
+
+            
+
+            Console.Write("\nMemoria Física: [");
+            int blockCount = 50;
+            int usedBlocks = (int)((double)paginasEnMemoria.Count * tamanoPagina / TamanioTotal * blockCount);
+            Console.Write(new string('█', usedBlocks));
+            Console.Write(new string('░', blockCount - usedBlocks));
+            Console.WriteLine("]");
+
+            Console.Write("\nMemoria Virtual: [");
+            int virtualUsedBlocks = (int)((double)virtualUsedMemory / totalVirtualSize * blockCount);
+            Console.Write(new string('█', virtualUsedBlocks));
+            Console.Write(new string('░', blockCount - virtualUsedBlocks));
+            Console.WriteLine("]");
+        }
+
 
         public List<int> ObtenerTablaPaginas(int idProceso)
         {
             return tablaPaginas.ContainsKey(idProceso) ? tablaPaginas[idProceso] : new List<int>();
         }
-
-        public bool EstaEnMemoriaFisica(int pagina)
-        {
-            return paginasEnMemoria.Contains(pagina);
-        }
-
     }
 }
