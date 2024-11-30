@@ -178,7 +178,7 @@ namespace SimuladorMemoria
                 }
             }
 
-            // === Agrega puntos de depuración ===
+            // === Ver como funciona la paginacion ===
             Console.WriteLine("\nDepuración:");
             Console.WriteLine($"Páginas en memoria física: {string.Join(", ", paginasEnMemoria)}");
             Console.WriteLine($"Marcos libres: {string.Join(", ", marcosLibres)}");
